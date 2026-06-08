@@ -57,7 +57,7 @@ dbCredentials:
 # Aidbox ADMIN (production data) — existing HS chart, unchanged.
 # fullnameOverride aidbox-admin  ->  in-cluster service aidbox-admin-api
 # -----------------------------------------------------------------------------
-aidboxAdmin:
+aidbox-admin:
   enabled: true
   fullnameOverride: aidbox-admin
   protocol: https
@@ -103,7 +103,7 @@ aidboxAdmin:
 # Aidbox SANDBOX (developer/test data) — same chart, same DB role, db "sandbox".
 # fullnameOverride aidbox-sandbox  ->  in-cluster service aidbox-sandbox-api
 # -----------------------------------------------------------------------------
-aidboxSandbox:
+aidbox-sandbox:
   enabled: true
   fullnameOverride: aidbox-sandbox
   protocol: https
