@@ -9,11 +9,13 @@ spec:
   selector:
     matchLabels:
       {{- include "smartbox.selectorLabels" . | nindent 6 }}
+  {{- with .Values.strategy }}
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
+      maxSurge: {{ .maxSurge }}
+      maxUnavailable: {{ .maxUnavailable }}
+  {{- end }}
   template:
     metadata:
       labels:
@@ -54,20 +56,18 @@ spec:
             httpGet:
               path: {{ .path }}
               port: {{ .port }}
-              scheme: HTTP
-            initialDelaySeconds: 30
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 3
+              scheme: {{ .scheme | default "HTTP" }}
+            {{- with .liveness }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           readinessProbe:
             httpGet:
               path: {{ .path }}
               port: {{ .port }}
-              scheme: HTTP
-            initialDelaySeconds: 10
-            periodSeconds: 5
-            timeoutSeconds: 3
-            failureThreshold: 3
+              scheme: {{ .scheme | default "HTTP" }}
+            {{- with .readiness }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- end }}
           {{- with .Values.resources }}
           resources:
@@ -78,4 +78,4 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
       restartPolicy: Always
-      terminationGracePeriodSeconds: 30
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}

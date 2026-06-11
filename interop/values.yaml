@@ -21,6 +21,23 @@ ports:
 probe:
   path: /health
   port: 8088
+  scheme: HTTP
+  liveness:
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+# Deployment rollout + lifecycle
+strategy:
+  maxSurge: 1
+  maxUnavailable: 0
+terminationGracePeriodSeconds: 30
 
 resources:
   requests:
@@ -52,15 +69,9 @@ config:
 
 # ----- secrets -> envFrom -----
 secrets:
-  mode: externalSecret
-  storeRef:
-    kind: ClusterSecretStore
-    name: gcp-store
-  refreshInterval: 1h
-  remoteKeyPrefix: ""
-  data:                          # dedicated client secret — NOT shared with other apps
-    AIDBOX_CLIENT_SECRET: interop--aidbox-client-secret
-    AIDBOX_APP_SECRET: interop--aidbox-app-secret
+  # The chart does NOT create this Secret — provision it in your infra layer.
+  # See PREREQUISITES.md. Defaults to "<release>-secrets" when empty.
+  # Required keys: AIDBOX_CLIENT_SECRET, AIDBOX_APP_SECRET (dedicated, not shared)
   existingSecretName: ""
 
 service:

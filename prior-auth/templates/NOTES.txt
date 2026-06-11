@@ -2,7 +2,7 @@
 
 Image:   {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
 Service: {{ include "smartbox.fullname" . }} ({{ .Values.service.type }})
-Secrets: mode={{ .Values.secrets.mode }}{{ if eq .Values.secrets.mode "externalSecret" }} (store {{ .Values.secrets.storeRef.name }}){{ else }} (existing secret {{ .Values.secrets.existingSecretName }}){{ end }}
+Secrets: envFrom existing Secret "{{ include "smartbox.secretName" . }}" (must be provisioned separately — see PREREQUISITES.md)
 
 {{- if .Values.ingress.enabled }}
 

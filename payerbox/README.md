@@ -11,9 +11,11 @@ Umbrella Helm chart for the Smartbox payor + ePA stack. One `helm install` bring
 | `aidbox-admin` | HS `aidbox` 0.2.8 | production-data FHIR server (DB `portal`) |
 | `aidbox-sandbox` | HS `aidbox` 0.2.8 | developer/test FHIR server (DB `sandbox`) |
 
-Plus a **CloudNativePG `Cluster`** (`payerbox-db`) hosting both databases.
-
 All images (Aidbox + the three apps) are pinned to tag **`2605`**; the Aidbox **chart** is pinned to **0.2.8**.
+
+> **Scope:** this chart deploys **only the applications + Aidbox**. PostgreSQL (CloudNativePG)
+> and all Secrets are **NOT** created here — they are infrastructure concerns you provision
+> separately. See **[PREREQUISITES.md](./PREREQUISITES.md)**.
 
 ## Topology
 
@@ -30,34 +32,23 @@ All images (Aidbox + the three apps) are pinned to tag **`2605`**; the Aidbox **
 Cross-app wiring relies on **stable service names** (`aidbox-admin-api`, `aidbox-sandbox-api`,
 `interop`, `prior-auth`) — all components must run in the same namespace.
 
-## Cluster prerequisites (NOT installed by this chart)
+## Prerequisites
 
-- **CloudNativePG operator** (provides the `Cluster` CRD)
-- **External Secrets Operator** + a `ClusterSecretStore` (default name `gcp-store`)
-- **ingress-nginx** controller + **cert-manager** (ClusterIssuer `letsencrypt`)
+Provision these **before** installing (full details + manifests in
+**[PREREQUISITES.md](./PREREQUISITES.md)**):
 
-## Secret-store keys to populate
-
-With the default `remoteKeyPrefix: ""`, create these in your secret manager:
-
-| Key | Used by |
-|-----|---------|
-| `payerbox-db--username` / `payerbox-db--password` | CNPG owner role **and** Aidbox `BOX_DB_USER`/`BOX_DB_PASSWORD` (username value must be `aidbox`) |
-| `aidbox-admin--box-license`, `aidbox-admin--box-admin-password`, `aidbox-admin--box-root-client-secret` | admin Aidbox |
-| `aidbox-sandbox--box-license`, `aidbox-sandbox--box-admin-password`, `aidbox-sandbox--box-root-client-secret` | sandbox Aidbox |
-| `fhir-app-portal--session-secret`, `fhir-app-portal--admin-api-client-secret`, `fhir-app-portal--developer-api-client-secret` | portal **and** Aidbox client registration |
-| `interop--aidbox-client-secret`, `interop--aidbox-app-secret` | interop **and** admin init-bundle |
-| `prior-auth--aidbox-client-secret`, `prior-auth--aidbox-app-secret` | prior-auth **and** admin init-bundle |
-
-The same client-secret keys are read by both the apps and the Aidbox init-bundles, so the
-values stay consistent.
+- **CloudNativePG operator** + a `Cluster` exposing `payerbox-db-rw` with databases `portal` + `sandbox`
+- **External Secrets Operator** (or any tool) creating the Secrets the charts consume
+- **ingress-nginx** + **cert-manager** (ClusterIssuer `letsencrypt`)
 
 ## Install
 
 ```bash
+# 1. provision prerequisites (CNPG Cluster + Secrets) — see PREREQUISITES.md
+# 2. then:
 helm dependency build ./payerbox
 helm install payerbox ./payerbox -n payerbox --create-namespace \
-  -f my-values.yaml          # override hosts, secret store, prefixes
+  -f my-values.yaml          # override hosts, BOX_DB_HOST, ingress, etc.
 ```
 
 Each app chart is independently installable too (`helm install interop ./interop ...`).

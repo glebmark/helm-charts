@@ -24,6 +24,23 @@ ports:
 probe:
   path: /health
   port: 8095
+  scheme: HTTP
+  liveness:
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+# Deployment rollout + lifecycle
+strategy:
+  maxSurge: 1
+  maxUnavailable: 0
+terminationGracePeriodSeconds: 30
 
 resources:
   requests:
@@ -67,20 +84,13 @@ config:
   DEVELOPER_API_CLIENT_ID: developer-api
   APP_NAME: "FHIR Access Portal"
 
-# ----- secrets -> envFrom -----
-# mode: externalSecret (default) | existingSecret
+# ----- secrets: existing Secret consumed via envFrom (chart does NOT create it) -----
 secrets:
-  mode: externalSecret
-  storeRef:
-    kind: ClusterSecretStore
-    name: gcp-store          # AWS: secrets-manager
-  refreshInterval: 1h
-  remoteKeyPrefix: ""        # e.g. "portal--prod--"
-  data:                      # secretKey: remoteRef.key (prefix is prepended)
-    SESSION_SECRET: fhir-app-portal--session-secret
-    ADMIN_API_CLIENT_SECRET: fhir-app-portal--admin-api-client-secret
-    DEVELOPER_API_CLIENT_SECRET: fhir-app-portal--developer-api-client-secret
-  existingSecretName: ""     # used only when mode=existingSecret
+  # The chart does NOT create this Secret — provision it in your infra layer
+  # (External Secrets Operator, sealed-secrets, etc.). See PREREQUISITES.md.
+  # Defaults to "<release>-secrets" when empty.
+  # Required keys: SESSION_SECRET, ADMIN_API_CLIENT_SECRET, DEVELOPER_API_CLIENT_SECRET
+  existingSecretName: ""
 
 service:
   type: ClusterIP

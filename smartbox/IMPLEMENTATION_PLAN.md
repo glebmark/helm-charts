@@ -47,6 +47,24 @@ Out of scope: the wider ePA-demo `cms-*` services, MPF cronjob, auditbox/mdm. (T
 - The aidbox 0.2.8 chart has **no `extraEnvs`** (renamed `secretKeyRef`) — only `config`, `extraEnvFromConfigMaps`, `extraEnvFromSecrets`. It auto-extracts secret-typed keys (`BOX_DB_*`, `BOX_ADMIN_PASSWORD`, `BOX_LICENSE`, …) out of `.config` into its own Secret; `extraEnvFromSecrets` are `envFrom`-appended *after* and therefore win. So all secret env is supplied via the umbrella `aidbox-*-env` ExternalSecret and kept out of `.config`.
 - Because of that, CNPG can't use its auto-generated `<cluster>-app` secret (keys `username`/`password` ≠ `BOX_DB_*`). Instead CNPG uses a **predefined** basic-auth secret and Aidbox reads `BOX_DB_USER/PASSWORD` from the same external-store keys.
 
+## Architecture revision (2026-06-09, post DevOps review)
+
+DevOps review: a Helm chart should "do one thing well" — **CNPG and ExternalSecrets do not
+belong in the chart** (CNPG especially needs heavy per-env extension: barman ObjectStore,
+ScheduledBackup, sync replication, image catalogs, PodMonitor — see the villagecare example).
+**Decision: removed both from the charts entirely; documented as prerequisites instead.**
+
+- Deleted: `payerbox/templates/{cnpg-cluster,db-credentials,aidbox-externalsecrets}.yaml` and the
+  app charts' `externalsecret.yaml`. Removed `cnpg`/`dbCredentials`/`aidboxSecrets`/`global.secretStore`
+  from `payerbox/values.yaml`.
+- App charts now only **reference** an existing Secret via `secrets.existingSecretName`
+  (default `<release>-secrets`); no `secrets.mode`/ExternalSecret creation.
+- Aidbox still consumes the infra-provided `aidbox-{admin,sandbox}-env` Secret via
+  `extraEnvFromSecrets`, and `BOX_DB_HOST` points at an infra-provided CNPG `-rw` Service.
+- New **`payerbox/PREREQUISITES.md`** (publishable) documents the required operators, the CNPG
+  `Cluster` example (both DBs), and every Secret + keys + consistency rules. Charts render only
+  app + Aidbox objects now.
+
 ## 1. Target topology
 
 ```

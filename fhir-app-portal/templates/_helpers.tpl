@@ -33,16 +33,12 @@ app: {{ include "smartbox.fullname" . }}
 {{- end -}}
 
 {{/*
-Name of the Secret consumed via envFrom.
-- externalSecret mode: chart renders "<fullname>-secrets"
-- existingSecret mode: the customer-provided secret name
+Name of the existing Secret consumed via envFrom. The Secret itself is NOT created
+by this chart — provision it in your infra layer (e.g. External Secrets Operator).
+Defaults to "<fullname>-secrets"; override with secrets.existingSecretName.
 */}}
 {{- define "smartbox.secretName" -}}
-{{- if eq .Values.secrets.mode "existingSecret" -}}
-{{- required "secrets.existingSecretName is required when secrets.mode=existingSecret" .Values.secrets.existingSecretName -}}
-{{- else -}}
-{{- printf "%s-secrets" (include "smartbox.fullname" .) -}}
-{{- end -}}
+{{- default (printf "%s-secrets" (include "smartbox.fullname" .)) .Values.secrets.existingSecretName -}}
 {{- end -}}
 
 {{- define "smartbox.serviceAccountName" -}}
