@@ -1,0 +1,44 @@
+{{- if and .Values.ingress.enabled (eq (.Values.ingress.api | default "ingress") "gateway") }}
+{{- /*
+  Gateway API (opt-in via ingress.api=gateway). Attaches to an EXISTING parent
+  Gateway via parentRefs — the chart does NOT create the Gateway. TLS and any
+  controller-specific policy (CORS, rate limiting, timeouts) live on that Gateway,
+  not here; the nginx Ingress annotations/tls in values are ignored in this mode.
+
+  HTTPRoute backendRefs take a port NUMBER (not a name), so map the named service
+  port (hardcoded in service.yaml) back to its number here. One HTTPRoute per host,
+  because a single multi-hostname route cannot bind host -> distinct backend.
+*/}}
+{{- $top := . }}
+{{- $portMap := dict "http" 8088 }}
+{{- range $i, $h := .Values.ingress.hosts }}
+{{- if $i }}
+---
+{{- end }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ include "smartbox.fullname" $top }}-{{ $h.servicePortName | default "http" }}
+  labels:
+    {{- include "smartbox.labels" $top | nindent 4 }}
+spec:
+  parentRefs:
+    - name: {{ required "ingress.gateway.name is required when ingress.api=gateway" $top.Values.ingress.gateway.name }}
+      {{- with $top.Values.ingress.gateway.namespace }}
+      namespace: {{ . }}
+      {{- end }}
+      {{- with $top.Values.ingress.gateway.sectionName }}
+      sectionName: {{ . }}
+      {{- end }}
+  hostnames:
+    - {{ $h.host | quote }}
+  rules:
+    - matches:
+        - path:
+            type: {{ $h.pathType | default "PathPrefix" }}
+            value: {{ $h.path | default "/" }}
+      backendRefs:
+        - name: {{ include "smartbox.fullname" $top }}
+          port: {{ index $portMap ($h.servicePortName | default "http") }}
+{{- end }}
+{{- end }}

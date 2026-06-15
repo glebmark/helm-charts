@@ -16,9 +16,7 @@ spec:
   selector:
     {{- include "smartbox.selectorLabels" . | nindent 4 }}
   ports:
-    {{- range .Values.service.ports }}
-    - name: {{ .name }}
-      protocol: {{ .protocol | default "TCP" }}
-      port: {{ .port }}
-      targetPort: {{ .targetPort | default .port }}
-    {{- end }}
+    - name: http
+      protocol: TCP
+      port: 8088
+      targetPort: 8088

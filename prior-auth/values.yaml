@@ -9,18 +9,16 @@ replicaCount: 1
 
 image:
   repository: healthsamurai/prior-auth
-  tag: "2605"
+  tag: ""
   digest: ""
   pullPolicy: Always
 
 imagePullSecrets: []
 
-ports:
-  - { name: http, containerPort: 8092 }
+# Container ports are hardcoded in templates/deployment.yaml (fixed by the image).
 
 probe:
   path: /health
-  port: 8092
   scheme: HTTP
   # startupProbe gates liveness/readiness until the app has booted
   # (here: up to failureThreshold*periodSeconds = 30*10 = 300s).
@@ -58,7 +56,7 @@ securityContext:
   runAsNonRoot: true
   runAsUser: 1000
   capabilities:
-    drop: ["ALL"]
+    drop: [ "ALL" ]
 
 podAnnotations: {}
 
@@ -69,7 +67,7 @@ serviceAccount:
 
 # ----- non-secret config -> ConfigMap, mounted via envFrom -----
 config:
-  AIDBOX_URL: "http://aidbox-admin-api"        # admin Aidbox, in-cluster
+  AIDBOX_URL: "http://aidbox-admin-api" # admin Aidbox, in-cluster
   AIDBOX_CLIENT_ID: prior-auth-app
   AIDBOX_APP_PORT: "8092"
   PRIOR_AUTH_APP_URL: "http://prior-auth:8092/"
@@ -84,8 +82,14 @@ secrets:
 service:
   type: ClusterIP
   sessionAffinity: null
-  ports:
-    - { name: http, port: 8092, targetPort: 8092 }
+  # Service ports are hardcoded in templates/service.yaml (fixed by the image).
 
 ingress:
   enabled: false
+  # Routing API: "ingress" (default, nginx Ingress) or "gateway" (Gateway API HTTPRoute).
+  # In gateway mode, set gateway.name to an EXISTING parent Gateway and define hosts.
+  api: ingress
+  gateway:
+    name: "" # REQUIRED in gateway mode: name of the parent Gateway
+    namespace: "" # optional: parent Gateway namespace (defaults to release namespace)
+    sectionName: "" # optional: specific Gateway listener section to attach to

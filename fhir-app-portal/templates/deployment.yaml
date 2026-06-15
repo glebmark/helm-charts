@@ -41,11 +41,15 @@ spec:
           {{- end }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
-            {{- range .Values.ports }}
-            - name: {{ .name }}
-              containerPort: {{ .containerPort }}
-              protocol: {{ .protocol | default "TCP" }}
-            {{- end }}
+            - name: portal
+              containerPort: 8095
+              protocol: TCP
+            - name: dev-portal
+              containerPort: 8096
+              protocol: TCP
+            - name: backend
+              containerPort: 8081
+              protocol: TCP
           envFrom:
             - configMapRef:
                 name: {{ include "smartbox.fullname" . }}-config
@@ -56,7 +60,7 @@ spec:
           startupProbe:
             httpGet:
               path: {{ $probe.path }}
-              port: {{ $probe.port }}
+              port: 8095
               scheme: {{ $probe.scheme | default "HTTP" }}
             {{- toYaml . | nindent 12 }}
           {{- end }}
@@ -64,7 +68,7 @@ spec:
           livenessProbe:
             httpGet:
               path: {{ $probe.path }}
-              port: {{ $probe.port }}
+              port: 8095
               scheme: {{ $probe.scheme | default "HTTP" }}
             {{- toYaml . | nindent 12 }}
           {{- end }}
@@ -72,7 +76,7 @@ spec:
           readinessProbe:
             httpGet:
               path: {{ $probe.path }}
-              port: {{ $probe.port }}
+              port: 8095
               scheme: {{ $probe.scheme | default "HTTP" }}
             {{- toYaml . | nindent 12 }}
           {{- end }}

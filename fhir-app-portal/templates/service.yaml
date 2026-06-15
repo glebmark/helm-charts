@@ -15,10 +15,13 @@ spec:
   {{- end }}
   selector:
     {{- include "smartbox.selectorLabels" . | nindent 4 }}
+  # The backend port (8081) is intentionally not exposed by the Service.
   ports:
-    {{- range .Values.service.ports }}
-    - name: {{ .name }}
-      protocol: {{ .protocol | default "TCP" }}
-      port: {{ .port }}
-      targetPort: {{ .targetPort | default .port }}
-    {{- end }}
+    - name: portal
+      protocol: TCP
+      port: 8095
+      targetPort: 8095
+    - name: dev-portal
+      protocol: TCP
+      port: 8096
+      targetPort: 8096

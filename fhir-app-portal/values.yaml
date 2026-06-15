@@ -10,20 +10,16 @@ replicaCount: 1
 
 image:
   repository: healthsamurai/fhir-app-portal
-  tag: "2605"
-  digest: ""          # if set, used instead of tag (repository@sha256:...)
+  tag: ""
+  digest: "" # if set, used instead of tag (repository@sha256:...)
   pullPolicy: Always
 
-imagePullSecrets: []   # e.g. [ { name: artifact-registry-creds } ]
+imagePullSecrets: [] # e.g. [ { name: artifact-registry-creds } ]
 
-ports:
-  - { name: portal, containerPort: 8095 }
-  - { name: dev-portal, containerPort: 8096 }
-  - { name: backend, containerPort: 8081 }
+# Container ports are hardcoded in templates/deployment.yaml (fixed by the image).
 
 probe:
   path: /health
-  port: 8095
   scheme: HTTP
   # startupProbe gates liveness/readiness until the app has booted
   # (here: up to failureThreshold*periodSeconds = 30*10 = 300s).
@@ -61,7 +57,7 @@ securityContext:
   runAsNonRoot: true
   runAsUser: 1000
   capabilities:
-    drop: ["ALL"]
+    drop: [ "ALL" ]
 
 podAnnotations: {}
 
@@ -106,12 +102,19 @@ service:
   sessionAffinityConfig:
     clientIP:
       timeoutSeconds: 10800
-  ports:
-    - { name: portal, port: 8095, targetPort: 8095 }
-    - { name: developer-portal, port: 8096, targetPort: 8096 }
+  # Service ports are hardcoded in templates/service.yaml (fixed by the image).
 
 ingress:
   enabled: true
+  # Routing API: "ingress" (default, nginx Ingress) or "gateway" (Gateway API HTTPRoute).
+  api: ingress
+  # Gateway API mode (api: gateway) — attaches HTTPRoutes to an EXISTING parent Gateway.
+  # The chart does not create the Gateway. TLS + the nginx annotations below are
+  # NOT applied in gateway mode (they belong on the parent Gateway / its policies).
+  gateway:
+    name: "" # REQUIRED in gateway mode: name of the parent Gateway
+    namespace: "" # optional: parent Gateway namespace (defaults to release namespace)
+    sectionName: "" # optional: specific Gateway listener section to attach to
   className: nginx
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt
@@ -129,10 +132,11 @@ ingress:
     nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
   tls:
-    - hosts:
-        - portal.example.com
-        - portal-sandbox.example.com
-      secretName: fhir-portal-tls
+  - hosts:
+    - portal.example.com
+    - portal-sandbox.example.com
+    secretName: fhir-portal-tls
+  # servicePortName references a named port defined in templates/service.yaml.
   hosts:
-    - { host: portal.example.com, servicePort: 8095 }
-    - { host: portal-sandbox.example.com, servicePort: 8096 }
+  - { host: portal.example.com, servicePortName: portal }
+  - { host: portal-sandbox.example.com, servicePortName: dev-portal }

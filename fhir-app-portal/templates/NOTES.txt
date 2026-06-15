@@ -8,9 +8,9 @@ Secrets: envFrom existing Secret "{{ include "smartbox.secretName" . }}" (must b
 
 Ingress hosts:
 {{- range .Values.ingress.hosts }}
-  - https://{{ .host }}  ->  {{ include "smartbox.fullname" $ }}:{{ .servicePort }}
+  - https://{{ .host }}  ->  {{ include "smartbox.fullname" $ }} (port {{ .servicePortName }})
 {{- end }}
 {{- else }}
 
-No ingress (ClusterIP-internal). In-cluster address: http://{{ include "smartbox.fullname" . }}:{{ (index .Values.service.ports 0).port }}
+No ingress (ClusterIP-internal). In-cluster address: http://{{ include "smartbox.fullname" . }}:8095
 {{- end }}
