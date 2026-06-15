@@ -1,4 +1,7 @@
-{{- if and .Values.ingress.enabled (eq (.Values.ingress.api | default "ingress") "ingress") }}
+{{- if .Values.ingress.enabled }}
+{{- /* The portal serves two fixed hosts; build them (and TLS) from the top-level
+       portalHost/sandboxHost/tlsSecretName so hosts are declared once, not repeated. */}}
+{{- $hosts := list (dict "host" .Values.portalHost "port" "portal") (dict "host" .Values.sandboxHost "port" "dev-portal") }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -11,27 +14,25 @@ metadata:
   {{- end }}
 spec:
   ingressClassName: {{ .Values.ingress.className }}
-  {{- with .Values.ingress.tls }}
+  {{- with .Values.tlsSecretName }}
   tls:
-    {{- range . }}
     - hosts:
-        {{- range .hosts }}
-        - {{ . | quote }}
+        {{- range $hosts }}
+        - {{ .host | quote }}
         {{- end }}
-      secretName: {{ .secretName }}
-    {{- end }}
+      secretName: {{ . }}
   {{- end }}
   rules:
-    {{- range .Values.ingress.hosts }}
+    {{- range $hosts }}
     - host: {{ .host | quote }}
       http:
         paths:
-          - path: {{ .path | default "/" }}
-            pathType: {{ .pathType | default "Prefix" }}
+          - path: /
+            pathType: Prefix
             backend:
               service:
                 name: {{ include "smartbox.fullname" $ }}
                 port:
-                  name: {{ .servicePortName }}
+                  name: {{ .port }}
     {{- end }}
 {{- end }}

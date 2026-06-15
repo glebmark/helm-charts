@@ -1,8 +1,5 @@
-# =============================================================================
-# fhir-app-portal — Smartbox portal (admin + developer)
-# Single container, two HTTP ports: 8095 (admin) + 8096 (developer), 8081 backend.
-# Connects to BOTH Aidboxes: admin (8095) and sandbox (8096).
-# =============================================================================
+# fhir-app-portal — Smartbox admin + developer portal (single image).
+# Ports 8095 (admin) + 8096 (developer) + 8081 backend; connects to both Aidboxes.
 
 nameOverride: ""
 fullnameOverride: ""
@@ -10,19 +7,16 @@ replicaCount: 1
 
 image:
   repository: healthsamurai/fhir-app-portal
-  tag: ""
-  digest: "" # if set, used instead of tag (repository@sha256:...)
+  tag: "" # defaults to Chart.appVersion
+  digest: "" # overrides tag if set (repository@sha256:...)
   pullPolicy: Always
 
 imagePullSecrets: [] # e.g. [ { name: artifact-registry-creds } ]
 
-# Container ports are hardcoded in templates/deployment.yaml (fixed by the image).
-
 probe:
   path: /health
   scheme: HTTP
-  # startupProbe gates liveness/readiness until the app has booted
-  # (here: up to failureThreshold*periodSeconds = 30*10 = 300s).
+  # startup gates liveness/readiness until booted (~5min max here)
   startup:
     initialDelaySeconds: 5
     periodSeconds: 10
@@ -38,7 +32,6 @@ probe:
     timeoutSeconds: 3
     failureThreshold: 3
 
-# Deployment rollout + lifecycle
 strategy:
   maxSurge: 1
   maxUnavailable: 0
@@ -66,9 +59,7 @@ serviceAccount:
   name: ""
   annotations: {}
 
-# ----- non-secret config -> ConfigMap, mounted via envFrom -----
-# In-cluster Aidbox service names assume admin/sandbox run in the same namespace
-# with fullnameOverride aidbox-admin / aidbox-sandbox (service <name>-api).
+# Non-secret config -> ConfigMap (envFrom). Aidbox svc names assume same namespace.
 config:
   NODE_ENV: production
   PORTAL_BACKEND_PORT: "8081"
@@ -88,11 +79,8 @@ config:
   DEVELOPER_API_CLIENT_ID: developer-api
   APP_NAME: "FHIR Access Portal"
 
-# ----- secrets: existing Secret consumed via envFrom (chart does NOT create it) -----
 secrets:
-  # The chart does NOT create this Secret — provision it in your infra layer
-  # (External Secrets Operator, sealed-secrets, etc.). See PREREQUISITES.md.
-  # Defaults to "<release>-secrets" when empty.
+  # Existing Secret (NOT created here — see PREREQUISITES.md); defaults to <release>-secrets.
   # Required keys: SESSION_SECRET, ADMIN_API_CLIENT_SECRET, DEVELOPER_API_CLIENT_SECRET
   existingSecretName: ""
 
@@ -102,19 +90,49 @@ service:
   sessionAffinityConfig:
     clientIP:
       timeoutSeconds: 10800
-  # Service ports are hardcoded in templates/service.yaml (fixed by the image).
 
+# Hostnames served — single source of truth for routes (via tpl) AND ingress.
+portalHost: portal.example.com
+sandboxHost: portal-sandbox.example.com
+tlsSecretName: fhir-portal-tls # used by the nginx Ingress only
+
+# Gateway API routes (default external exposure). Map of HTTPRoutes attached to an
+# EXISTING parent Gateway (parentRefs). For nginx Ingress instead, see ingress below.
+route:
+  portal:
+    enabled: true
+    apiVersion: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    annotations: {}
+    labels: {}
+    parentRefs:
+    - name: main-gateway # override per environment
+      # namespace: gateway-system
+      # sectionName: https
+    hostnames:
+    - '{{ .Values.portalHost }}'
+    backendPortName: portal
+    matches:
+    - path: { type: PathPrefix, value: / }
+    filters: []
+    timeouts: {}
+    sessionPersistence: {}
+    additionalRules: []
+    httpsRedirect: false
+  dev-portal:
+    enabled: true
+    parentRefs:
+    - name: main-gateway
+    hostnames:
+    - '{{ .Values.sandboxHost }}'
+    backendPortName: dev-portal
+    matches:
+    - path: { type: PathPrefix, value: / }
+
+# nginx Ingress: alternative to the routes above; disabled by default.
+# Hosts + TLS are built from portalHost/sandboxHost/tlsSecretName in templates/ingress.yaml.
 ingress:
-  enabled: true
-  # Routing API: "ingress" (default, nginx Ingress) or "gateway" (Gateway API HTTPRoute).
-  api: ingress
-  # Gateway API mode (api: gateway) — attaches HTTPRoutes to an EXISTING parent Gateway.
-  # The chart does not create the Gateway. TLS + the nginx annotations below are
-  # NOT applied in gateway mode (they belong on the parent Gateway / its policies).
-  gateway:
-    name: "" # REQUIRED in gateway mode: name of the parent Gateway
-    namespace: "" # optional: parent Gateway namespace (defaults to release namespace)
-    sectionName: "" # optional: specific Gateway listener section to attach to
+  enabled: false
   className: nginx
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt
@@ -131,12 +149,3 @@ ingress:
     nginx.ingress.kubernetes.io/proxy-connect-timeout: "300"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
-  tls:
-  - hosts:
-    - portal.example.com
-    - portal-sandbox.example.com
-    secretName: fhir-portal-tls
-  # servicePortName references a named port defined in templates/service.yaml.
-  hosts:
-  - { host: portal.example.com, servicePortName: portal }
-  - { host: portal-sandbox.example.com, servicePortName: dev-portal }

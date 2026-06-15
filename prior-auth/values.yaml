@@ -1,7 +1,4 @@
-# =============================================================================
-# prior-auth — ePA prior-authorization service. ClusterIP-internal (no ingress).
-# Connects to the ADMIN Aidbox only.
-# =============================================================================
+# prior-auth — ePA prior-authorization service. ClusterIP-internal; connects to the admin Aidbox.
 
 nameOverride: ""
 fullnameOverride: ""
@@ -9,19 +6,16 @@ replicaCount: 1
 
 image:
   repository: healthsamurai/prior-auth
-  tag: ""
+  tag: "" # defaults to Chart.appVersion
   digest: ""
   pullPolicy: Always
 
 imagePullSecrets: []
 
-# Container ports are hardcoded in templates/deployment.yaml (fixed by the image).
-
 probe:
   path: /health
   scheme: HTTP
-  # startupProbe gates liveness/readiness until the app has booted
-  # (here: up to failureThreshold*periodSeconds = 30*10 = 300s).
+  # startup gates liveness/readiness until booted (~5min max here)
   startup:
     initialDelaySeconds: 5
     periodSeconds: 10
@@ -37,7 +31,6 @@ probe:
     timeoutSeconds: 3
     failureThreshold: 3
 
-# Deployment rollout + lifecycle
 strategy:
   maxSurge: 1
   maxUnavailable: 0
@@ -65,31 +58,46 @@ serviceAccount:
   name: ""
   annotations: {}
 
-# ----- non-secret config -> ConfigMap, mounted via envFrom -----
+# Non-secret config -> ConfigMap (envFrom).
 config:
   AIDBOX_URL: "http://aidbox-admin-api" # admin Aidbox, in-cluster
   AIDBOX_CLIENT_ID: prior-auth-app
   AIDBOX_APP_PORT: "8092"
   PRIOR_AUTH_APP_URL: "http://prior-auth:8092/"
 
-# ----- secrets -> envFrom -----
 secrets:
-  # The chart does NOT create this Secret — provision it in your infra layer.
-  # See PREREQUISITES.md. Defaults to "<release>-secrets" when empty.
+  # Existing Secret (NOT created here — see PREREQUISITES.md); defaults to <release>-secrets.
   # Required keys: AIDBOX_CLIENT_SECRET, AIDBOX_APP_SECRET (dedicated, not shared)
   existingSecretName: ""
 
 service:
   type: ClusterIP
   sessionAffinity: null
-  # Service ports are hardcoded in templates/service.yaml (fixed by the image).
 
+# Gateway API routes. prior-auth is ClusterIP-internal by default; enable a route (with
+# parentRefs + hostnames) only to expose it via a Gateway. "main" key = no name suffix.
+route:
+  main:
+    enabled: false
+    apiVersion: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    annotations: {}
+    labels: {}
+    parentRefs: []
+    # - name: main-gateway
+    #   namespace: gateway-system
+    #   sectionName: https
+    hostnames: []
+    # - prior-auth.example.com
+    backendPortName: http
+    matches:
+    - path: { type: PathPrefix, value: / }
+    filters: []
+    timeouts: {}
+    sessionPersistence: {}
+    additionalRules: []
+    httpsRedirect: false
+
+# nginx Ingress: alternative to the routes above; disabled by default.
 ingress:
   enabled: false
-  # Routing API: "ingress" (default, nginx Ingress) or "gateway" (Gateway API HTTPRoute).
-  # In gateway mode, set gateway.name to an EXISTING parent Gateway and define hosts.
-  api: ingress
-  gateway:
-    name: "" # REQUIRED in gateway mode: name of the parent Gateway
-    namespace: "" # optional: parent Gateway namespace (defaults to release namespace)
-    sectionName: "" # optional: specific Gateway listener section to attach to
