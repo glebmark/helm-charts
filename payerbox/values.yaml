@@ -23,17 +23,41 @@ aidbox-admin:
     BOX_SETTINGS_MODE: read-write
     BOX_INIT_BUNDLE: file:///init-bundle/init-bundle.json
     JAVA_OPTS: "-XX:MaxRAMPercentage=75"
+    # Non-secret value substituted into the init-bundle by the render initContainer below.
+    # Override per environment.
+    ADMIN_FRONTEND_URL: https://portal.example.com
   # Secret env (DB creds, license, admin pwd, client secrets) from the infra-provisioned
   # aidbox-admin-env Secret (appended after .config, so it wins). Keep secrets OUT of .config.
   extraEnvFromSecrets:
-    - aidbox-admin-env
+  - aidbox-admin-env
+  # The init-bundle is a ${VAR} template (ConfigMap = init-bundle-src). An initContainer runs
+  # envsubst — restricted to the listed vars so Aidbox matcho operators ($one-of, $sql, …) are
+  # left intact — and writes the substituted bundle to the emptyDir Aidbox reads. Re-renders on
+  # every pod start, so it survives helm upgrades (no manual patching).
   volumes:
-    - name: init-bundle
-      configMap:
-        name: aidbox-admin-init-bundle
+  - name: init-bundle-src
+    configMap:
+      name: aidbox-admin-init-bundle
+  - name: init-bundle
+    emptyDir: {}
   volumeMounts:
-    - name: init-bundle
-      mountPath: /init-bundle
+  - name: init-bundle
+    mountPath: /init-bundle
+  initContainers:
+  - name: render-init-bundle
+    image: healthsamurai/aidboxone:2605 # reuse the Aidbox image (already ships envsubst)
+    command: [ "/bin/sh", "-c" ]
+    args:
+    - "envsubst '${ADMIN_FRONTEND_URL} ${ADMIN_API_CLIENT_SECRET}' < /init-bundle-src/init-bundle.json > /init-bundle/init-bundle.json"
+    envFrom:
+    - configMapRef: { name: aidbox-admin } # non-secret URLs from .config above
+    env:
+    - name: ADMIN_API_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef: { name: aidbox-admin-env, key: ADMIN_API_CLIENT_SECRET }
+    volumeMounts:
+    - { name: init-bundle-src, mountPath: /init-bundle-src }
+    - { name: init-bundle, mountPath: /init-bundle }
   ingress:
     enabled: true
     className: nginx
@@ -64,15 +88,37 @@ aidbox-sandbox:
     BOX_SETTINGS_MODE: read-write
     BOX_INIT_BUNDLE: file:///init-bundle/init-bundle.json
     JAVA_OPTS: "-XX:MaxRAMPercentage=75"
+    # Non-secret values substituted into the init-bundle by the render initContainer below.
+    DEVELOPER_FRONTEND_URL: https://portal-sandbox.example.com # override per environment
+    ADMIN_AIDBOX_PUBLIC_URL: https://aidbox.example.com # admin Aidbox token issuer (introspector iss) — override
+    AIDBOX_ADMIN_URL: https://aidbox.example.com
   extraEnvFromSecrets:
-    - aidbox-sandbox-env
+  - aidbox-sandbox-env
+  # See aidbox-admin above — same envsubst render pattern.
   volumes:
-    - name: init-bundle
-      configMap:
-        name: aidbox-sandbox-init-bundle
+  - name: init-bundle-src
+    configMap:
+      name: aidbox-sandbox-init-bundle
+  - name: init-bundle
+    emptyDir: {}
   volumeMounts:
-    - name: init-bundle
-      mountPath: /init-bundle
+  - name: init-bundle
+    mountPath: /init-bundle
+  initContainers:
+  - name: render-init-bundle
+    image: healthsamurai/aidboxone:2605
+    command: [ "/bin/sh", "-c" ]
+    args:
+    - "envsubst '${DEVELOPER_FRONTEND_URL} ${ADMIN_AIDBOX_PUBLIC_URL} ${AIDBOX_ADMIN_URL} ${DEVELOPER_API_CLIENT_SECRET}' < /init-bundle-src/init-bundle.json > /init-bundle/init-bundle.json"
+    envFrom:
+    - configMapRef: { name: aidbox-sandbox } # non-secret URLs from .config above
+    env:
+    - name: DEVELOPER_API_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef: { name: aidbox-sandbox-env, key: DEVELOPER_API_CLIENT_SECRET }
+    volumeMounts:
+    - { name: init-bundle-src, mountPath: /init-bundle-src }
+    - { name: init-bundle, mountPath: /init-bundle }
   ingress:
     enabled: true
     className: nginx
@@ -91,8 +137,8 @@ fhir-app-portal:
     CORS_ORIGINS: "https://portal.example.com,https://portal-sandbox.example.com"
     ADMIN_FRONTEND_URL: "https://portal.example.com"
     DEVELOPER_FRONTEND_URL: "https://portal-sandbox.example.com"
-    AIDBOX_ADMIN_URL: "http://aidbox-admin-api"
-    AIDBOX_DEV_URL: "http://aidbox-sandbox-api"
+    AIDBOX_ADMIN_URL: "https://aidbox.example.com"
+    AIDBOX_DEV_URL: "https://aidbox-sandbox.example.com"
     AIDBOX_ADMIN_PUBLIC_URL: "https://aidbox.example.com"
     ADMIN_AIDBOX_PUBLIC_URL: "https://aidbox.example.com"
     AIDBOX_DEV_PUBLIC_URL: "https://aidbox-sandbox.example.com"
